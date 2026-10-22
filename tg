@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+cmd="${1:-}"
+shift || true
+
+PY=""
+if [[ -x "$SCRIPT_DIR/.venv/bin/python" ]]; then
+  PY="$SCRIPT_DIR/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+  PY="$(command -v python3)"
+else
+  echo "python3 not found" >&2
+  exit 1
+fi
+
+export PYTHONPATH="$SCRIPT_DIR/src${PYTHONPATH:+:$PYTHONPATH}"
+
+case "$cmd" in
+  setup)
+    if [[ ! -d "$SCRIPT_DIR/.venv" ]]; then
+      python3 -m venv .venv
+    fi
+    "$SCRIPT_DIR/.venv/bin/python" -m pip install -U pip >/dev/null
+    "$SCRIPT_DIR/.venv/bin/python" -m pip install -e .
+    ;;
+  gui)
+    if [[ ! -x "$SCRIPT_DIR/.venv/bin/python" ]]; then
+      echo "Run ./tg setup first" >&2
+      exit 2
+    fi
+    exec "$SCRIPT_DIR/.venv/bin/python" -m streamlit run "$SCRIPT_DIR/src/telegram_ad_v2/gui_app.py" -- "$@"
+    ;;
+  ""|-h|--help|help)
+    cat <<'EOF'
+Usage:
+  ./tg setup
+  ./tg check-config
+  ./tg list-chats
+  ./tg accounts-list
+  ./tg dispatch --source-chat-id <CHAT_ID> --source-message-id <MSG_ID> [--dry-run|--no-dry-run --confirm-send]
+  ./tg import-groups [--source-file ../assets/groups.txt] [--output-file scripts/allowed_groups.txt]
+
+  # Group lifecycle
+  ./tg join-groups --groups-file ../assets/groups.txt --max-joins 50
+  ./tg join-from-file --groups-file ../assets/groups.txt --account-index 0
+  ./tg leave-groups --groups-file scripts/allowed_groups.txt
+  ./tg leave-all
+
+  # Campaigns
+  ./tg campaign-create --name my_camp --source-chat-id <ID> --source-message-id <MSG_ID>
+  ./tg campaign-list
+  ./tg campaign-run --name my_camp
+  ./tg campaign-stop --name my_camp
+
+  # Interactive session
+  ./tg interactive
+  ./tg reset --confirm
+  ./tg gui
+
+Notes:
+  - Reads settings from .env in this folder.
+  - First run may ask for Telegram verification code.
+  - Multi-account: set TG_ACCOUNTS_JSON in .env
+EOF
+    ;;
+  *)
+    "$PY" -m telegram_ad_v2.main "$cmd" "$@"
+    ;;
+esac

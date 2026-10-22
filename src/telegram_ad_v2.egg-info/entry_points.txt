@@ -1,0 +1,2 @@
+[console_scripts]
+telegram-ad-v2 = telegram_ad_v2.cli:app
